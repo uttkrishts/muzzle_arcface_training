@@ -1,6 +1,7 @@
 # train_arcface.py
 import os
 import sys
+import subprocess
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -40,6 +41,7 @@ def ensure_drive_dataset():
     os.makedirs(DATA_ROOT, exist_ok=True)
     try:
         import gdown
+        from gdown.exceptions import FolderContentsMaximumLimitError
     except ImportError as exc:
         raise ImportError(
             "gdown is required to download the Google Drive dataset. "
@@ -47,7 +49,24 @@ def ensure_drive_dataset():
         ) from exc
 
     print("Downloading dataset from Google Drive...")
-    gdown.download_folder(url=GDRIVE_FOLDER_URL, output=DATA_ROOT, quiet=False, use_cookies=False)
+    try:
+        gdown.download_folder(url=GDRIVE_FOLDER_URL, output=DATA_ROOT, quiet=False, use_cookies=False)
+    except FolderContentsMaximumLimitError:
+        # Fall back to CLI with --remaining-ok to bypass 50-file listing limit.
+        cmd = [
+            sys.executable, "-m", "gdown",
+            "--folder", "--remaining-ok",
+            GDRIVE_FOLDER_URL,
+            "-O", DATA_ROOT
+        ]
+        print("Drive folder has >50 files; retrying with gdown CLI and --remaining-ok...")
+        result = subprocess.run(cmd, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "gdown CLI failed to download the folder. "
+                "Try upgrading gdown: pip install -U gdown, "
+                "or switch to rclone for large datasets."
+            )
 
     # Handle case where Drive folder contains a single subfolder with train/val
     if not (os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR)):
