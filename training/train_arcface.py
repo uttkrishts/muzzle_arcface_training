@@ -89,8 +89,16 @@ NUM_WORKERS = 0  # MPS safe
 # ---------------------------
 # Device
 # ---------------------------
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
 print(f"Using device: {device}")
+if device.type == "cuda":
+    print(f"CUDA device: {torch.cuda.get_device_name(0)}")
 
 # ---------------------------
 # Transforms
