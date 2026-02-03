@@ -38,12 +38,14 @@ RCLONE_REMOTE = os.environ.get("RCLONE_REMOTE", "gdrive")
 
 # Train/val paths (override via env if you want custom layout)
 TRAIN_DIR = os.environ.get("TRAIN_DIR", os.path.join(DATA_ROOT, "train"))
-VAL_DIR   = os.environ.get("VAL_DIR", os.path.join(DATA_ROOT, "val"))
+VAL_DIR = os.environ.get("VAL_DIR", os.path.join(DATA_ROOT, "val"))
+
 
 def _extract_drive_folder_id(url: str) -> str:
     if "/folders/" in url:
         return url.split("/folders/")[1].split("?")[0]
     return url
+
 
 def ensure_drive_dataset():
     """Download the Google Drive folder into DATA_ROOT if train/val aren't present."""
@@ -57,11 +59,19 @@ def ensure_drive_dataset():
             "Install it with: sudo apt-get install -y rclone"
         )
 
-    folder_id = os.environ.get("RCLONE_FOLDER_ID") or _extract_drive_folder_id(GDRIVE_FOLDER_URL)
-    # flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
+    folder_id = os.environ.get("RCLONE_FOLDER_ID") or _extract_drive_folder_id(
+        GDRIVE_FOLDER_URL
+    )
+    flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
 
     print("Downloading dataset from Google Drive using rclone...")
-    cmd = ["rclone", "copy", f"{RCLONE_REMOTE}:{folder_id}", DATA_ROOT, "--progress"] #+ flags
+    cmd = [
+        "rclone",
+        "copy",
+        f"{RCLONE_REMOTE}:{folder_id}",
+        DATA_ROOT,
+        "--progress",
+    ] + flags
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise RuntimeError(
@@ -86,6 +96,8 @@ def ensure_drive_dataset():
             "Dataset download completed, but train/val folders were not found. "
             "Set DATA_ROOT/TRAIN_DIR/VAL_DIR env vars to point to your dataset layout."
         )
+
+
 CHECKPOINT_DIR = "experiments/checkpoints_arcface"
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
@@ -98,7 +110,7 @@ BATCH_SIZE = P * K
 
 EPOCHS = 60
 MODEL_LR = 3e-4
-LOSS_LR  = 1e-3
+LOSS_LR = 1e-3
 WEIGHT_DECAY = 1e-4
 
 # ArcFace (IMPORTANT: radians, not degrees)
@@ -124,29 +136,31 @@ print(f"Using device: {device}")
 # ---------------------------
 # Transforms
 # ---------------------------
-train_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomRotation(8),
-    transforms.ColorJitter(0.2, 0.2, 0.1),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485,0.456,0.406],
-                         std=[0.229,0.224,0.225])
-])
+train_transform = transforms.Compose(
+    [
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(8),
+        transforms.ColorJitter(0.2, 0.2, 0.1),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
 
-val_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485,0.456,0.406],
-                         std=[0.229,0.224,0.225])
-])
+val_transform = transforms.Compose(
+    [
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
 
 # ---------------------------
 # Dataset
 # ---------------------------
 ensure_drive_dataset()
 train_dataset = MuzzleDataset(TRAIN_DIR, transform=train_transform)
-val_dataset   = MuzzleDataset(VAL_DIR, transform=val_transform)
+val_dataset = MuzzleDataset(VAL_DIR, transform=val_transform)
 
 num_classes = len(set(train_dataset.labels))
 print(f"Train images: {len(train_dataset)}")
@@ -155,34 +169,24 @@ print(f"Train identities: {num_classes}")
 # ---------------------------
 # Sampler & Loader
 # ---------------------------
-train_sampler = PKSampler(
-    labels=train_dataset.labels,
-    P=P,
-    K=K
-)
+train_sampler = PKSampler(labels=train_dataset.labels, P=P, K=K)
 
 train_loader = DataLoader(
     train_dataset,
     batch_size=BATCH_SIZE,
     # sampler=train_sampler,
     shuffle=True,
-    num_workers=NUM_WORKERS
+    num_workers=NUM_WORKERS,
 )
 
 val_loader = DataLoader(
-    val_dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=False,
-    num_workers=NUM_WORKERS
+    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS
 )
 
 # ---------------------------
 # Model
 # ---------------------------
-model = MuzzleEmbeddingNet(
-    embedding_dim=EMBEDDING_DIM,
-    pretrained=True
-).to(device)
+model = MuzzleEmbeddingNet(embedding_dim=EMBEDDING_DIM, pretrained=True).to(device)
 
 # ---------------------------
 # ArcFace Loss
@@ -191,25 +195,26 @@ arcface = losses.ArcFaceLoss(
     num_classes=num_classes,
     embedding_size=EMBEDDING_DIM,
     margin=MARGIN_RAD,
-    scale=SCALE
+    scale=SCALE,
 ).to(device)
 
-loss_optimizer = torch.optim.SGD(
-    arcface.parameters(),
-    lr=LOSS_LR,
-    momentum=0.9
-)
+loss_optimizer = torch.optim.SGD(arcface.parameters(), lr=LOSS_LR, momentum=0.9)
 
 optimizer = torch.optim.AdamW(
-    model.parameters(),
-    lr=MODEL_LR,
-    weight_decay=WEIGHT_DECAY
+    model.parameters(), lr=MODEL_LR, weight_decay=WEIGHT_DECAY
 )
+
 
 # ---------------------------
 # Verification Metrics
 # ---------------------------
 def compute_eer_auc(embeddings, labels):
+    if np.isnan(embeddings).any() or np.isinf(embeddings).any():
+        print(
+            "Warning: NaN/Inf embeddings detected in validation. Returning trivial metrics."
+        )
+        return 1.0, 0.5
+
     embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
     scores = []
@@ -224,6 +229,12 @@ def compute_eer_auc(embeddings, labels):
     scores = np.array(scores)
     y_true = np.array(y_true)
 
+    if len(np.unique(y_true)) < 2:
+        print(
+            "Warning: Only one class present in validation pair set. Returning trivial metrics."
+        )
+        return 1.0, 0.5
+
     fpr, tpr, _ = roc_curve(y_true, scores)
     roc_auc = auc(fpr, tpr)
 
@@ -231,6 +242,7 @@ def compute_eer_auc(embeddings, labels):
     eer = fpr[np.nanargmin(np.abs(fpr - fnr))]
 
     return eer, roc_auc
+
 
 def validate(model, loader):
     model.eval()
@@ -248,6 +260,7 @@ def validate(model, loader):
     labels = np.concatenate(all_labels)
 
     return compute_eer_auc(embs, labels)
+
 
 # ---------------------------
 # Training Loop
@@ -271,14 +284,25 @@ for epoch in range(1, EPOCHS + 1):
         embeddings = model(imgs)
         loss = arcface(embeddings, labels)
 
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"Warning: NaN/Inf loss detected at Epoch {epoch}. Skipping step.")
+            loss_optimizer.zero_grad()
+            optimizer.zero_grad()
+            continue
+
         loss.backward()
+
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+        torch.nn.utils.clip_grad_norm_(arcface.parameters(), max_norm=5.0)
+
         optimizer.step()
         loss_optimizer.step()
 
         running_loss += loss.item()
         pbar.set_postfix(loss=f"{loss.item():.3f}")
 
-    avg_train_loss = running_loss / len(train_loader)
+    avg_train_loss = running_loss / len(train_loader) if len(train_loader) > 0 else 0.0
 
     eer, roc_auc = validate(model, val_loader)
 
@@ -298,8 +322,8 @@ for epoch in range(1, EPOCHS + 1):
                 "arcface_state_dict": arcface.state_dict(),
                 "eer": eer,
                 "auc": roc_auc,
-                "embedding_dim": EMBEDDING_DIM
+                "embedding_dim": EMBEDDING_DIM,
             },
-            os.path.join(CHECKPOINT_DIR, "best_arcface_model_new.pt")
+            os.path.join(CHECKPOINT_DIR, "best_arcface_model_new.pt"),
         )
         print(f"✓ Saved best model (EER={eer*100:.2f}%)")
