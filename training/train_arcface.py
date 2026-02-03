@@ -204,6 +204,14 @@ optimizer = torch.optim.AdamW(
     model.parameters(), lr=MODEL_LR, weight_decay=WEIGHT_DECAY
 )
 
+# Learning Rate Schedulers
+scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    optimizer, milestones=[20, 40], gamma=0.1
+)
+loss_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    loss_optimizer, milestones=[20, 40], gamma=0.1
+)
+
 
 # ---------------------------
 # Verification Metrics
@@ -304,11 +312,16 @@ for epoch in range(1, EPOCHS + 1):
 
     avg_train_loss = running_loss / len(train_loader) if len(train_loader) > 0 else 0.0
 
+    current_lr = optimizer.param_groups[0]["lr"]
+    scheduler.step()
+    loss_scheduler.step()
+
     eer, roc_auc = validate(model, val_loader)
 
     print(
         f"[Epoch {epoch}] "
         f"Train Loss: {avg_train_loss:.4f} | "
+        f"LR: {current_lr:.6f} | "
         f"EER: {eer*100:.2f}% | "
         f"AUC: {roc_auc:.4f}"
     )
