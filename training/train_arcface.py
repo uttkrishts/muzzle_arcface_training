@@ -34,7 +34,7 @@ DATA_ROOT = os.environ.get("DATA_ROOT", os.path.join(REPO_ROOT, "data"))
 # rclone config (expects a configured remote, default name: gdrive)
 RCLONE_REMOTE = os.environ.get("RCLONE_REMOTE", "gdrive")
 # Set extra rclone flags via env if needed (e.g., "--drive-shared-with-me")
-RCLONE_FLAGS = os.environ.get("RCLONE_FLAGS", "--drive-shared-with-me")
+# RCLONE_FLAGS = os.environ.get("RCLONE_FLAGS", "--drive-shared-with-me")
 
 # Train/val paths (override via env if you want custom layout)
 TRAIN_DIR = os.environ.get("TRAIN_DIR", os.path.join(DATA_ROOT, "train"))
@@ -58,10 +58,10 @@ def ensure_drive_dataset():
         )
 
     folder_id = os.environ.get("RCLONE_FOLDER_ID") or _extract_drive_folder_id(GDRIVE_FOLDER_URL)
-    flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
+    # flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
 
     print("Downloading dataset from Google Drive using rclone...")
-    cmd = ["rclone", "copy", f"{RCLONE_REMOTE}:{folder_id}", DATA_ROOT, "--progress"] + flags
+    cmd = ["rclone", "copy", f"{RCLONE_REMOTE}:{folder_id}", DATA_ROOT, "--progress"] #+ flags
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise RuntimeError(
@@ -110,16 +110,16 @@ NUM_WORKERS = 0  # MPS safe
 # ---------------------------
 # Device
 # ---------------------------
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-else:
-    device = torch.device("cpu")
+# if torch.cuda.is_available():
+device = torch.device("cuda")
+# elif torch.backends.mps.is_available():
+#     device = torch.device("mps")
+# else:
+#     device = torch.device("cpu")
 
 print(f"Using device: {device}")
-if device.type == "cuda":
-    print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+# if device.type == "cuda":
+#     print(f"CUDA device: {torch.cuda.get_device_name(0)}")
 
 # ---------------------------
 # Transforms
