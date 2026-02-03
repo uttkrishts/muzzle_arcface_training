@@ -2,6 +2,8 @@
 import os
 import sys
 import subprocess
+import shutil
+import shlex
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -29,9 +31,19 @@ GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1xUkP2ExT8LWI5JJzHJC
 # Local dataset root on the cloud machine
 DATA_ROOT = os.environ.get("DATA_ROOT", os.path.join(REPO_ROOT, "data"))
 
+# rclone config (expects a configured remote, default name: gdrive)
+RCLONE_REMOTE = os.environ.get("RCLONE_REMOTE", "gdrive")
+# Set extra rclone flags via env if needed (e.g., "--drive-shared-with-me")
+RCLONE_FLAGS = os.environ.get("RCLONE_FLAGS", "--drive-shared-with-me")
+
 # Train/val paths (override via env if you want custom layout)
 TRAIN_DIR = os.environ.get("TRAIN_DIR", os.path.join(DATA_ROOT, "train"))
 VAL_DIR   = os.environ.get("VAL_DIR", os.path.join(DATA_ROOT, "val"))
+
+def _extract_drive_folder_id(url: str) -> str:
+    if "/folders/" in url:
+        return url.split("/folders/")[1].split("?")[0]
+    return url
 
 def ensure_drive_dataset():
     """Download the Google Drive folder into DATA_ROOT if train/val aren't present."""
@@ -39,34 +51,24 @@ def ensure_drive_dataset():
         return
 
     os.makedirs(DATA_ROOT, exist_ok=True)
-    try:
-        import gdown
-        from gdown.exceptions import FolderContentsMaximumLimitError
-    except ImportError as exc:
-        raise ImportError(
-            "gdown is required to download the Google Drive dataset. "
-            "Install it with: pip install gdown"
-        ) from exc
+    if shutil.which("rclone") is None:
+        raise RuntimeError(
+            "rclone is required to download the Google Drive dataset. "
+            "Install it with: sudo apt-get install -y rclone"
+        )
 
-    print("Downloading dataset from Google Drive...")
-    try:
-        gdown.download_folder(url=GDRIVE_FOLDER_URL, output=DATA_ROOT, quiet=False, use_cookies=False)
-    except FolderContentsMaximumLimitError:
-        # Fall back to CLI with --remaining-ok to bypass 50-file listing limit.
-        cmd = [
-            sys.executable, "-m", "gdown",
-            "--folder", "--remaining-ok",
-            GDRIVE_FOLDER_URL,
-            "-O", DATA_ROOT
-        ]
-        print("Drive folder has >50 files; retrying with gdown CLI and --remaining-ok...")
-        result = subprocess.run(cmd, check=False)
-        if result.returncode != 0:
-            raise RuntimeError(
-                "gdown CLI failed to download the folder. "
-                "Try upgrading gdown: pip install -U gdown, "
-                "or switch to rclone for large datasets."
-            )
+    folder_id = os.environ.get("RCLONE_FOLDER_ID") or _extract_drive_folder_id(GDRIVE_FOLDER_URL)
+    flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
+
+    print("Downloading dataset from Google Drive using rclone...")
+    cmd = ["rclone", "copy", f"{RCLONE_REMOTE}:{folder_id}", DATA_ROOT, "--progress"] + flags
+    result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "rclone failed to download the folder. "
+            "Make sure your rclone remote is configured and has access, "
+            "or set RCLONE_FLAGS (e.g., --drive-shared-with-me) and RCLONE_REMOTE."
+        )
 
     # Handle case where Drive folder contains a single subfolder with train/val
     if not (os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR)):
