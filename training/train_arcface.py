@@ -22,8 +22,49 @@ from sklearn.metrics import roc_curve, auc
 # ---------------------------
 # Config
 # ---------------------------
-TRAIN_DIR = "/Users/taglineinfotechllp/Documents/RnD/cattle_resnet/data/finetuning_dataset/train/"
-VAL_DIR   = "/Users/taglineinfotechllp/Documents/RnD/cattle_resnet/data/finetuning_dataset/val/"
+# Google Drive dataset (folder link)
+GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1xUkP2ExT8LWI5JJzHJCUpGLqGoVJC1Ja?usp=drive_link"
+
+# Local dataset root on the cloud machine
+DATA_ROOT = os.environ.get("DATA_ROOT", os.path.join(REPO_ROOT, "data"))
+
+# Train/val paths (override via env if you want custom layout)
+TRAIN_DIR = os.environ.get("TRAIN_DIR", os.path.join(DATA_ROOT, "train"))
+VAL_DIR   = os.environ.get("VAL_DIR", os.path.join(DATA_ROOT, "val"))
+
+def ensure_drive_dataset():
+    """Download the Google Drive folder into DATA_ROOT if train/val aren't present."""
+    if os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR):
+        return
+
+    os.makedirs(DATA_ROOT, exist_ok=True)
+    try:
+        import gdown
+    except ImportError as exc:
+        raise ImportError(
+            "gdown is required to download the Google Drive dataset. "
+            "Install it with: pip install gdown"
+        ) from exc
+
+    print("Downloading dataset from Google Drive...")
+    gdown.download_folder(url=GDRIVE_FOLDER_URL, output=DATA_ROOT, quiet=False, use_cookies=False)
+
+    # Handle case where Drive folder contains a single subfolder with train/val
+    if not (os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR)):
+        for entry in os.listdir(DATA_ROOT):
+            sub = os.path.join(DATA_ROOT, entry)
+            if os.path.isdir(sub):
+                candidate_train = os.path.join(sub, "train")
+                candidate_val = os.path.join(sub, "val")
+                if os.path.isdir(candidate_train) and os.path.isdir(candidate_val):
+                    print(f"Found nested dataset folder: {sub}")
+                    return
+
+    if not (os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR)):
+        raise FileNotFoundError(
+            "Dataset download completed, but train/val folders were not found. "
+            "Set DATA_ROOT/TRAIN_DIR/VAL_DIR env vars to point to your dataset layout."
+        )
 CHECKPOINT_DIR = "experiments/checkpoints_arcface"
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
@@ -74,6 +115,7 @@ val_transform = transforms.Compose([
 # ---------------------------
 # Dataset
 # ---------------------------
+ensure_drive_dataset()
 train_dataset = MuzzleDataset(TRAIN_DIR, transform=train_transform)
 val_dataset   = MuzzleDataset(VAL_DIR, transform=val_transform)
 
