@@ -62,7 +62,7 @@ def ensure_drive_dataset():
     folder_id = os.environ.get("RCLONE_FOLDER_ID") or _extract_drive_folder_id(
         GDRIVE_FOLDER_URL
     )
-    flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
+    # flags = shlex.split(RCLONE_FLAGS) if RCLONE_FLAGS else []
 
     print("Downloading dataset from Google Drive using rclone...")
     cmd = [
@@ -71,7 +71,7 @@ def ensure_drive_dataset():
         f"{RCLONE_REMOTE}:{folder_id}",
         DATA_ROOT,
         "--progress",
-    ] + flags
+    ]
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise RuntimeError(
