@@ -109,9 +109,9 @@ K = 4
 BATCH_SIZE = P * K
 
 EPOCHS = 70
-MODEL_LR = 3e-4
-LOSS_LR = 1e-3
-WEIGHT_DECAY = 1e-2
+MODEL_LR = 1e-2
+LOSS_LR = 1e-2
+WEIGHT_DECAY = 5e-4
 
 # ArcFace (IMPORTANT: radians, not degrees)
 MARGIN_RAD = 0.50
@@ -138,7 +138,7 @@ print(f"Using device: {device}")
 # ---------------------------
 train_transform = transforms.Compose(
     [
-        transforms.Resize((256, 256)),
+        transforms.Resize((320, 320)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(8),
         transforms.ColorJitter(0.2, 0.2, 0.1),
@@ -150,7 +150,7 @@ train_transform = transforms.Compose(
 
 val_transform = transforms.Compose(
     [
-        transforms.Resize((256, 256)),
+        transforms.Resize((320, 320)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
@@ -201,8 +201,8 @@ arcface = losses.ArcFaceLoss(
 
 loss_optimizer = torch.optim.SGD(arcface.parameters(), lr=LOSS_LR, momentum=0.9)
 
-optimizer = torch.optim.AdamW(
-    model.parameters(), lr=MODEL_LR, weight_decay=WEIGHT_DECAY
+optimizer = torch.optim.SGD(
+    model.parameters(), lr=MODEL_LR, momentum=0.9, weight_decay=WEIGHT_DECAY
 )
 
 # Learning Rate Schedulers
