@@ -245,11 +245,19 @@ elif args.optimizer == "adamw":
     )
 
 # Learning Rate Schedulers
-scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    optimizer, milestones=[20, 40, 60], gamma=0.1
+# Learning Rate Schedulers
+# scheduler = torch.optim.lr_scheduler.MultiStepLR(
+#     optimizer, milestones=[20, 40, 60], gamma=0.1
+# )
+# loss_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+#     loss_optimizer, milestones=[20, 40, 60], gamma=0.1
+# )
+
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=EPOCHS, eta_min=1e-5
 )
-loss_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    loss_optimizer, milestones=[20, 40, 60], gamma=0.1
+loss_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    loss_optimizer, T_max=EPOCHS, eta_min=1e-5
 )
 
 
