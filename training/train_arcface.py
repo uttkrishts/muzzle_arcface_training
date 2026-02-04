@@ -108,13 +108,13 @@ P = 16
 K = 4
 BATCH_SIZE = P * K
 
-EPOCHS = 60
+EPOCHS = 70
 MODEL_LR = 3e-4
 LOSS_LR = 1e-3
-WEIGHT_DECAY = 1e-4
+WEIGHT_DECAY = 1e-2
 
 # ArcFace (IMPORTANT: radians, not degrees)
-MARGIN_RAD = 0.45
+MARGIN_RAD = 0.50
 SCALE = 64
 
 NUM_WORKERS = 0  # MPS safe
@@ -138,18 +138,19 @@ print(f"Using device: {device}")
 # ---------------------------
 train_transform = transforms.Compose(
     [
-        transforms.Resize((224, 224)),
+        transforms.Resize((256, 256)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(8),
         transforms.ColorJitter(0.2, 0.2, 0.1),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3)),
     ]
 )
 
 val_transform = transforms.Compose(
     [
-        transforms.Resize((224, 224)),
+        transforms.Resize((256, 256)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
@@ -206,10 +207,10 @@ optimizer = torch.optim.AdamW(
 
 # Learning Rate Schedulers
 scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    optimizer, milestones=[20, 40], gamma=0.1
+    optimizer, milestones=[20, 40, 60], gamma=0.1
 )
 loss_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    loss_optimizer, milestones=[20, 40], gamma=0.1
+    loss_optimizer, milestones=[20, 40, 60], gamma=0.1
 )
 
 
@@ -321,7 +322,7 @@ for epoch in range(1, EPOCHS + 1):
     print(
         f"[Epoch {epoch}] "
         f"Train Loss: {avg_train_loss:.4f} | "
-        f"LR: {current_lr:.6f} | "
+        f"LR: {current_lr:.9f} | "
         f"EER: {eer*100:.2f}% | "
         f"AUC: {roc_auc:.4f}"
     )
