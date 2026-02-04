@@ -4,6 +4,7 @@ import sys
 import subprocess
 import shutil
 import shlex
+import argparse
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -98,20 +99,45 @@ def ensure_drive_dataset():
         )
 
 
-CHECKPOINT_DIR = "experiments/checkpoints_arcface"
+# ---------------------------
+# Arguments
+# ---------------------------
+parser = argparse.ArgumentParser(description="Train ArcFace")
+parser.add_argument("--epochs", type=int, default=70, help="Number of epochs")
+parser.add_argument("--model_lr", type=float, default=1e-2, help="Model learning rate")
+parser.add_argument("--loss_lr", type=float, default=1e-2, help="Loss learning rate")
+parser.add_argument("--weight_decay", type=float, default=5e-4, help="Weight decay")
+parser.add_argument(
+    "--optimizer",
+    type=str,
+    default="sgd",
+    choices=["sgd", "adamw"],
+    help="Optimizer type",
+)
+parser.add_argument(
+    "--output_dir",
+    type=str,
+    default="experiments/checkpoints_arcface",
+    help="Checkpoint directory",
+)
+parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+
+args = parser.parse_args()
+
+CHECKPOINT_DIR = args.output_dir
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 EMBEDDING_DIM = 512
 
-# PK sampling
-P = 16
+BATCH_SIZE = args.batch_size
+# PK sampling approximation (P=Batch/K)
 K = 4
-BATCH_SIZE = P * K
+P = max(1, BATCH_SIZE // K)
 
-EPOCHS = 70
-MODEL_LR = 1e-2
-LOSS_LR = 1e-2
-WEIGHT_DECAY = 5e-4
+EPOCHS = args.epochs
+MODEL_LR = args.model_lr
+LOSS_LR = args.loss_lr
+WEIGHT_DECAY = args.weight_decay
 
 # ArcFace (IMPORTANT: radians, not degrees)
 MARGIN_RAD = 0.50
@@ -201,9 +227,14 @@ arcface = losses.ArcFaceLoss(
 
 loss_optimizer = torch.optim.SGD(arcface.parameters(), lr=LOSS_LR, momentum=0.9)
 
-optimizer = torch.optim.SGD(
-    model.parameters(), lr=MODEL_LR, momentum=0.9, weight_decay=WEIGHT_DECAY
-)
+if args.optimizer == "sgd":
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=MODEL_LR, momentum=0.9, weight_decay=WEIGHT_DECAY
+    )
+elif args.optimizer == "adamw":
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=MODEL_LR, weight_decay=WEIGHT_DECAY
+    )
 
 # Learning Rate Schedulers
 scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -338,6 +369,6 @@ for epoch in range(1, EPOCHS + 1):
                 "auc": roc_auc,
                 "embedding_dim": EMBEDDING_DIM,
             },
-            os.path.join(CHECKPOINT_DIR, "best_arcface_model_new.pt"),
+            os.path.join(CHECKPOINT_DIR, "best_arcface_model.pt"),
         )
-        print(f"✓ Saved best model (EER={eer*100:.2f}%)")
+        print(f"✓ Saved best model to {CHECKPOINT_DIR} (EER={eer*100:.2f}%)")
