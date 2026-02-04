@@ -121,6 +121,9 @@ parser.add_argument(
     help="Checkpoint directory",
 )
 parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+parser.add_argument(
+    "--num_workers", type=int, default=4, help="Number of data loading workers"
+)
 
 args = parser.parse_args()
 
@@ -143,7 +146,7 @@ WEIGHT_DECAY = args.weight_decay
 MARGIN_RAD = 0.50
 SCALE = 64
 
-NUM_WORKERS = 0  # MPS safe
+NUM_WORKERS = args.num_workers
 
 # ---------------------------
 # Device
@@ -204,10 +207,15 @@ train_loader = DataLoader(
     # sampler=train_sampler,
     shuffle=True,
     num_workers=NUM_WORKERS,
+    pin_memory=True,
 )
 
 val_loader = DataLoader(
-    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS
+    val_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    num_workers=NUM_WORKERS,
+    pin_memory=True,
 )
 
 # ---------------------------

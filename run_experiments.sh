@@ -4,6 +4,8 @@
 mkdir -p experiments
 
 echo "Starting parallel experiments..."
+echo "Killing any existing training processes..."
+pkill -f train_arcface.py || true
 
 # Experiment 1: SGD High LR (0.1)
 echo "Launching Experiment 1: SGD LR=0.1..."
@@ -13,6 +15,7 @@ nohup python training/train_arcface.py \
     --loss_lr 0.1 \
     --weight_decay 5e-4 \
     --output_dir experiments/sgd_0.1 \
+    --num_workers 4 \
     > experiments/sgd_0.1.log 2>&1 &
 PID1=$!
 
@@ -24,6 +27,7 @@ nohup python training/train_arcface.py \
     --loss_lr 0.01 \
     --weight_decay 5e-4 \
     --output_dir experiments/sgd_0.01 \
+    --num_workers 4 \
     > experiments/sgd_0.01.log 2>&1 &
 PID2=$!
 
@@ -35,11 +39,11 @@ nohup python training/train_arcface.py \
     --loss_lr 0.001 \
     --weight_decay 5e-4 \
     --output_dir experiments/sgd_0.001 \
+    --num_workers 4 \
     > experiments/sgd_0.001.log 2>&1 &
 PID3=$!
 
 # Experiment 4: AdamW Control (LR=3e-4) - The previous winner
-# Note: Using Loss LR of 0.001 (1e-3) as per previous success
 echo "Launching Experiment 4: AdamW LR=3e-4..."
 nohup python training/train_arcface.py \
     --optimizer adamw \
@@ -47,6 +51,7 @@ nohup python training/train_arcface.py \
     --loss_lr 0.001 \
     --weight_decay 0.01 \
     --output_dir experiments/adamw_control \
+    --num_workers 4 \
     > experiments/adamw_control.log 2>&1 &
 PID4=$!
 
