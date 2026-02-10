@@ -143,8 +143,8 @@ LOSS_LR = args.loss_lr
 WEIGHT_DECAY = args.weight_decay
 
 # ArcFace (IMPORTANT: radians, not degrees)
-MARGIN_RAD = 0.50
-SCALE = 64
+MARGIN_RAD = 0.35
+SCALE = 30
 
 NUM_WORKERS = args.num_workers
 
@@ -167,13 +167,12 @@ print(f"Using device: {device}")
 # ---------------------------
 train_transform = transforms.Compose(
     [
-        transforms.Resize((320, 320)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(8),
-        transforms.ColorJitter(0.2, 0.2, 0.1),
+        transforms.Resize((384, 384)),
+        transforms.RandomRotation(6),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1),
+        transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0)),  # mild only
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3)),
     ]
 )
 
